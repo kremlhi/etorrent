@@ -9,18 +9,6 @@ speed. ETORRENT is mostly meant for unattended operation, where one
 just specifies what files to download and gets a notification when
 they are.
 
-## Flag days
-
-Flag days are when you need to do something to your setup
-
-   * *2010-12-10* You will need a rebar with commit 618b292c3d84 as we
-     got some fixes into rebar.
-   * *2010-12-06* We now depend on riak_err. You will need to regrab
-     dependencies.
-   * *2010-12-02* The fast-resume-file format has been updated. You
-     may have to delete your fast_resume_file though the system was
-     configured to do a silent system upgrade.
-
 ## Build Status
 
 Currently, we are running build-bots through
@@ -58,97 +46,43 @@ especially if the client behaves badly.
 
 ## Required software:
 
-   * rebar - you need a working rebar installation to build etorrent.
-     The rebar must have commit 618b292c3d84. It is known that rebar
-     version `rebar version: 2 date: 20110310_155239 vcs: git 2e1b4da`
-     works, and later versions probably will too.
-   * Erlang/OTP R13B04 or R14 - the etorrent system is written in
-     Erlang and thus requires a working Erlang distribution to
-     work. It may work with older versions, but has mostly been tested
-     with newer versions.
-
-     If you have the option, running on R14B02 is preferred. The
-     developers are usually running on fairly recent Erlang/OTP
-     releases, so you have much better chances with these systems.
-   * A UNIX-derivative or Windows as the operating system
-     Support has been tested by mulander and is reported to work with
-     some manual labor. For details see the Windows getting started section.
+   * rebar3 - you need a working rebar3 installation to build etorrent.
+     See https://rebar3.org for installation instructions.
+   * Erlang/OTP - current and previous release are supported.
+   * A UNIX-derivative as the operating system.
 
 ## GETTING STARTED
 
-   0. `make deps` - Pull the relevant dependencies into *deps/*
-   1. `make compile` - this compiles the source code
-   2. `make rel` - this creates an embedded release in *rel/etorrent* which
-      can subsequently be moved to a location at your leisure.
-   3. edit `${EDITOR} rel/etorrent/etc/app.config` - there are a number of directories
-      which must be set in order to make the system work.
-   4. check `${EDITOR} rel/etorrent/etc/vm.args` - Erlang args to supply
-   5. be sure to protect the erlang cookie or anybody can connect to
+   0. `make release` - fetches dependencies, compiles, and assembles a release
+      in *_build/default/rel/etorrent*
+   1. edit `config/sys.config` - set at minimum these two keys:
+      * `{dir, "/path/to/watch"}` - the directory etorrent watches for .torrent files
+      * `{download_dir, "/path/to/downloads"}` - where downloaded files are written
+      Both directories must exist before starting. The system checks `dir` every
+      `dirwatch_interval` seconds (default: 20) for new .torrent files.
+   2. check `config/vm.args` - Erlang args to supply
+   3. be sure to protect the erlang cookie or anybody can connect to
       your erlang system! See the Erlang user manual in [distributed operation](http://www.erlang.org/doc/reference_manual/distributed.html)
-   6. run `rel/etorrent/bin/etorrent console`
-   7. drop a .torrent file in the watched dir and see what happens.
-   8. call `etorrent:help()`. from the Erlang CLI to get a list of available
-      commands.
-   9. If you enabled the webui, you can try browsing to its location. By default the location is 'http://localhost:8080'.
+   4. run `_build/default/rel/etorrent/bin/etorrent console`
+   5. to download a torrent, copy a .torrent file into the directory you configured
+      as `dir`. Etorrent will detect it within `dirwatch_interval` seconds and
+      begin downloading to `download_dir`.
+   6. call `etorrent:help()` from the Erlang console for a list of commands to
+      inspect and manage running torrents (list, pause, unpause, etc.).
+   7. to use the web UI, set `{webui, true}` in `config/sys.config` before
+      starting, then browse to http://localhost:8080 (or the configured
+      `webui_port`). It shows per-torrent progress, peer counts, and rates.
 
 ## GETTING STARTED (Windows)
-   0. Obviously get and install erlang from erlang.org. This process was tested with R14B01 release.
-      You may want to add the bin directory to your PATH in order to reduce the length of the commands you will enter later on.
-   1. Install [msysgit](http://code.google.com/p/msysgit/). Tested with [1.7.3.1.msysgit.0](http://code.google.com/p/msysgit/downloads/detail?name=Git-1.7.3.1-preview20101002.exe&can=2&q=).
-   2. Install [Win32 OpenSSL](http://www.slproweb.com/products/Win32OpenSSL.html).
-      The installer hang on me midway through the process but the libs were properly copied to C:\Windows\system32.
-   3. Confirm that your crypto works correctly by running `crypto:start().` from an erlang shell (Start->Erlang OTP R14B01->Erlang).
-      The shell should respond with `ok`. If you get an error then your openssl libraries are still missing.
-   4. Open up a git bash shell and cd to a directory you want to work in.
-   5. Clone the rebar repository `git clone https://github.com/basho/rebar.git`
-   6. From a regular cmd.exe shell `cd rebar`. Now if you added the erlang bin directory to your PATH then you can simply run `bootstrap.bat`.
-      If you didn't add Erlang's bin to your path then issue the following command:
-      
-      `"C:\Program Files\erl5.8.2\bin\escript.exe" bootstrap`
 
-      Adjust the path to your Erlang installation directory. From now on, use this invocation for escript.exe and erl.exe. I'll assume it's on PATH.
-      You should now have a `rebar` file created. If you have Erlangs bin dir on your PATH then you may want to also add the rebar directory to your
-      PATH. This will allow you to use the rebar.bat script which will also reduce the amount of typing you will have to do.
-   7. Clone etorrent and copy the `rebar` file into it (unless you have it on path).
-   8. Now, we need to satisfy the dependencies. This should be done by rebar itself but I couldn't get it to work correctly with git.
-      This point describes how to do it manually.
-      
-      `mkdir deps` # this is where rebar will look for etorrent dependencies
-      
-      `escript.exe rebar check-deps` # this will give you a list of the missing dependencies and their git repos.
-      
-      For each dependency reported by check-deps perform the following command in a git bash shell (be sure to be in the etorrent directory)
-      
-      `git clone git://path_to_repo/name.git deps/name`
-      
-      Be sure to run `escript.exe rebar check-deps` after cloning each additional repo as new dependencies might be added by them.
-      
-      For the time of this writing (2011-02-13) I had to clone the following repositories:
-      
-      `git clone git://github.com/esl/gproc.git deps/gproc`
-      
-      `git clone git://github.com/esl/edown.git deps/edown`
-      
-      `git clone git://github.com/basho/riak_err.git deps/riak_err`
-   9. `escript.exe rebar compile` to compile the application from a cmd.exe prompt.
-  10. `escript.exe rebar generate` this creates an embedded release in *rel/etorrent* which
-       can subsequently be moved to a location at your leisure. This command may take some time so be patient.
-  11. Edit `rel/etorrent/etc/app.config` - there are a number of directories which must be set in order to make the system work.
-      Be sure each directory exists before starting etorrent. You also have to change all paths starting with `/` (ie. `/var/lib...`).
-      When setting paths use forward slashes. For example `{dir, "D:/etorrent/torrents"},`.
-  12. Check `rel/etorrent/etc/vm.args` - Erlang args to supply
-  13. Be sure to protect the erlang cookie or anybody can connect to
-      your erlang system! See the Erlang user manual in [distributed operation](http://www.erlang.org/doc/reference_manual/distributed.html)
-  14. We can't run the etorrent script because it's written in bash. So in order to start ettorent cd from a cmd.exe shell into the `rel\etorrent`
-      directory. And perform the following command
-      
-      `erts-5.8.2\bin\erl.exe -boot release\1.2.1\etorrent -embedded -config etc\app.config -args_file etc\vm.args`
-      
-      Be sure to substitute the version number in the release path to the current etorrent release version. Do the same for the erts version.
-      Allow port communication when/if the Windows firewall asks for it.
-  15. drop a .torrent file in the watched dir and see what happens.
-  16. call `etorrent:help()`. from the Erlang CLI to get a list of available commands.
-  17. If you enabled the webui, you can try browsing to its location. By default the location is 'http://localhost:8080'.
+Windows users can run etorrent using the Windows Subsystem for Linux (WSL).
+
+   0. Install WSL from PowerShell or cmd: `wsl --install`
+   1. Open a WSL terminal and follow the standard GETTING STARTED steps above.
+
+Windows drives are accessible from WSL at `/mnt/c/`, `/mnt/d/`, etc., so you
+can point `dir` and `download_dir` at paths like `/mnt/c/Users/yourname/...`
+if you want to watch a Windows folder or save downloads to a Windows location.
 
 ## Testing etorrent
 
@@ -167,43 +101,16 @@ a list of known problems:
      packages are needed, please send a patch to this file for the
      distribution and version so we can keep it up-to-date.
 
-   * Ubuntu 10.10: Ubuntu has a symlink `/usr/lib/erlang/man ->
-   /usr/share/man`. This is insane and generates problems when
-   building a release (spec errors on missing files if a symlink
-   points to nowhere). The easiest fix is to remove the man symlink
-   from `/usr/lib/erlang`. A way better fix is to install a recent
-   Erlang/OTP yourself and use **Begone(tm)** on the supplied version.
-
 ### Installing Erlang
 
-I (jlouis@) use the following commands to install Erlang:
-
-* Install *stow*, `sudo aptitude install stow`
-* Execute `sudo aptitude build-dep erlang` to pull in all build
-dependencies we need.
-* Execute `git clone git://github.com/erlang/otp.git`
-* Get into the directory and fire away `git checkout dev && ./otp_build autoconf`
-* Get a useful tag for the otp version you have built `otp_version=$(git describe)`
-* `./configure --prefix=/usr/local/stow/${otp_version}`
-* `make; make docs`
-* `make install install-docs`
-
-And then I enable it in stow:
-
-    cd /usr/local/stow && stow ${otp_version}
-    
-You may have to use `stow -D` on an old 
-
-Another way is to use [Basho kerl](https://github.com/spawngrid/kerl), a simple shell script:
+The easiest way to install Erlang is with [kerl](https://github.com/kerl/kerl):
 
 ``` bash
-$ curl -O https://raw.github.com/spawngrid/kerl/master/kerl; chmod a+x kerl
-$ ./kerl build R14B04 r14b04
-$ ./kerl install r14b04 /opt/erlang/r14b04
-$ . /opt/erlang/r14b04/activate
+$ curl -O https://raw.githubusercontent.com/kerl/kerl/master/kerl; chmod a+x kerl
+$ ./kerl build latest latest
+$ ./kerl install latest /opt/erlang/latest
+$ . /opt/erlang/latest/activate
 ```
-
-In the above example, kerl installs Erlang R14B04 to directory /opt/erlang/r14b04 and makes it default. For more information, please check [kerl readme](https://github.com/spawngrid/kerl/blob/master/README.md).
 
 ## QUESTIONS??
 
@@ -219,18 +126,11 @@ giving tips to patch submitters.
 
 ## Setting up a development environment
 
-When developing for etorrent, you might end up generating a new
-environment quite often. So ease the configuration, the build
-infrastructure support this.
+   * run `make dev-release`
+   * run `_build/default/rel/etorrent/bin/etorrent console`
 
-   * Create a file `rel/vars/etorrent-dev_vars.config` based upon the file
-     `rel/vars.config`.
-   * run `make compile etorrent-dev`
-   * run `make console`
-
-Notice that we `-pa` add `../../apps/etorrent/ebin` so you can l(Mod) files
-from the shell directly into the running system after having
-recompiled them.
+You can reload a recompiled module from the shell with `l(ModuleName).`
+without restarting the node.
 
 ## Documentation
 
