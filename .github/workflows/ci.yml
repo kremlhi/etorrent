@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - next
+      - master
+      - 'kremlhi/**'
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        otp: ['26.3', '27.3', '28.0']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          rebar3-version: '3.23'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/rebar3
+          key: ${{ runner.os }}-rebar3-${{ matrix.otp }}-${{ hashFiles('rebar.config') }}
+      - run: rebar3 compile
+      - run: epmd -daemon && rebar3 ct
