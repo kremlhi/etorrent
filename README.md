@@ -11,8 +11,7 @@ they are.
 
 ## Build Status
 
-Currently, we are running build-bots through
-[http://travis-ci.org](Travis CI). [![Build Status](http://travis-ci.org/jlouis/etorrent.png?branch=master)](http://travis-ci.org//jlouis/etorrent)
+[![CI](https://github.com/jlouis/etorrent/actions/workflows/ci.yml/badge.svg)](https://github.com/jlouis/etorrent/actions/workflows/ci.yml)
 
 
 ## Why
