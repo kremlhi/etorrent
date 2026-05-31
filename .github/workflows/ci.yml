@@ -9,11 +9,27 @@ on:
   pull_request:
 
 jobs:
-  test:
+  test-latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '29'
+          rebar3-version: 'latest'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/rebar3
+          key: ${{ runner.os }}-rebar3-29-${{ hashFiles('rebar.config') }}
+      - run: rebar3 compile
+      - run: epmd -daemon && rebar3 ct
+
+  test-older:
+    needs: test-latest
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        otp: ['26', '27', '28', '29']
+        otp: ['26', '27', '28']
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
