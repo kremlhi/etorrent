@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - next
+      - master
+  pull_request:
+
+jobs:
+  test-latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '29'
+          rebar3-version: 'latest'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/rebar3
+          key: ${{ runner.os }}-rebar3-29-${{ hashFiles('rebar.config') }}
+      - run: rebar3 compile
+      - run: epmd -daemon && rebar3 ct
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ct-logs-latest
+          path: _build/test/logs/**
+          retention-days: 7
+
+  test-older:
+    needs: test-latest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        otp: ['26', '27', '28']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          rebar3-version: 'latest'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/rebar3
+          key: ${{ runner.os }}-rebar3-${{ matrix.otp }}-${{ hashFiles('rebar.config') }}
+      - run: rebar3 compile
+      - run: epmd -daemon && rebar3 ct
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ct-logs-${{ matrix.otp }}
+          path: _build/test/logs/**
+          retention-days: 7
