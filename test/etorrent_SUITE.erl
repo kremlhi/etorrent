@@ -118,6 +118,8 @@ end_per_suite(Config) ->
     ok.
 
 
+init_per_testcase(T, _Config) when T == leech_transmission; T == seed_transmission ->
+    {skip, "requires transmission-cli binary"};
 init_per_testcase(leech_transmission, Config) ->
     %% transmission => etorrent
     PrivDir   = ?config(priv_dir, Config),

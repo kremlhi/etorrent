@@ -95,5 +95,12 @@ parse_param(P) ->
         [K]    -> {percent_decode(K), <<>>}
     end.
 
-percent_decode(B) ->
-    uri_string:percent_decode(B).
+percent_decode(<<$%, H, L, Rest/binary>>) ->
+    Byte = list_to_integer([H, L], 16),
+    <<Byte, (percent_decode(Rest))/binary>>;
+percent_decode(<<$+, Rest/binary>>) ->
+    <<$\s, (percent_decode(Rest))/binary>>;
+percent_decode(<<C, Rest/binary>>) ->
+    <<C, (percent_decode(Rest))/binary>>;
+percent_decode(<<>>) ->
+    <<>>.
