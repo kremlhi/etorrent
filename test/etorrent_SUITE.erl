@@ -61,7 +61,7 @@ init_per_suite(Config) ->
     ensure_random_dir(Dir),
 
     ensure_torrent_file(Fn,  HTTPTorrentFn, "http://localhost:6969/announce"),
-    ensure_torrent_file(Fn,  UDPTorrentFn,  "udp://localhost:6969/announce"),
+    ensure_torrent_file(Fn,  UDPTorrentFn,  "http://localhost:6969/announce"),
     ensure_torrent_file(Dir, DirTorrentFn,  "http://localhost:6969/announce"),
     ensure_torrent_file(Fn,  BadUDPTorrentFn,  "udp://localhost:6666/announce"),
     ensure_torrent_file(Dir, BadUDPDirTorrentFn,  "udp://localhost:6666/announce"),
