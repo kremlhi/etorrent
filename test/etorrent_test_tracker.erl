@@ -67,7 +67,9 @@ handle_announce(Sock, Path, Peers) ->
             InfoHash  = proplists:get_value(<<"info_hash">>, Params, <<>>),
             AnnPort   = binary_to_integer(
                           proplists:get_value(<<"port">>, Params, <<"0">>)),
-            ets:insert(Peers, {InfoHash, <<"127.0.0.1">>, AnnPort}),
+            {ok, {PeerIP, _}} = inet:peername(Sock),
+            IpBin = list_to_binary(inet:ntoa(PeerIP)),
+            ets:insert(Peers, {InfoHash, IpBin, AnnPort}),
             PeerList  = [[{<<"ip">>, Ip}, {<<"port">>, P}]
                          || {_, Ip, P} <- ets:lookup(Peers, InfoHash)],
             Body      = iolist_to_binary(etorrent_bcoding:encode(
