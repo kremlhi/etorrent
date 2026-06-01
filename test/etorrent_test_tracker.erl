@@ -19,7 +19,7 @@ stop(Pid) ->
 
 init(Port) ->
     {ok, LSock} = gen_tcp:listen(Port, [binary, {reuseaddr, true}, {active, false}]),
-    Peers = ets:new(tracker_peers, [bag]),
+    Peers = ets:new(tracker_peers, [bag, public]),
     self() ! accept,
     {ok, #state{lsock = LSock, peers = Peers}}.
 
