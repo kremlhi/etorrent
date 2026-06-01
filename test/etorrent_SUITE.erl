@@ -212,6 +212,7 @@ init_per_testcase(seed_leech, Config) ->
     ct:pal("seed_leech init: seed node ~p etorrent_table = ~p",
            [SNode, rpc:call(SNode, etorrent_table, get_torrent,
                             [{infohash, ?config(info_hash_bin, Config)}])]),
+    inspect_torrent_supervisor(SNode),
     [{tracker_port, TrackerPid},
      {src_filename, SrcFn},
      {dest_filename, DestFn},
@@ -908,6 +909,27 @@ find_local_peers(Config) ->
 
 %% Helpers
 %% ----------------------------------------------------------------------
+
+inspect_torrent_supervisor(Node) ->
+    PoolPid = rpc:call(Node, erlang, whereis, [etorrent_torrent_pool]),
+    ct:pal("inspect: etorrent_torrent_pool on ~p = ~p", [Node, PoolPid]),
+    case PoolPid of
+        P when is_pid(P) ->
+            PoolChildren = rpc:call(Node, supervisor, which_children, [P]),
+            ct:pal("inspect: torrent_pool children = ~p", [PoolChildren]),
+            [begin
+                case TSupPid of
+                    TP when is_pid(TP) ->
+                        TSupChildren = rpc:call(Node, supervisor, which_children, [TP]),
+                        ct:pal("inspect: torrent_sup ~p children = ~p", [TP, TSupChildren]);
+                    _ -> ok
+                end
+             end || {_, TSupPid, supervisor, _} <- PoolChildren];
+        _ -> ok
+    end,
+    CrashLog = rpc:call(Node, ets, tab2list, [torrent_crash_log]),
+    ct:pal("inspect: torrent_crash_log on ~p = ~p", [Node, CrashLog]).
+
 start_opentracker(_Dir) ->
     {ok, Tracker} = etorrent_test_tracker:start(6969),
     Tracker.
