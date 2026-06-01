@@ -595,7 +595,7 @@ clean_transmission_directory(Dir) ->
 
 
 seed_configuration(Dir) ->
-    [{listen_ip, {127,0,0,2}},
+    [{listen_ip, {127,0,0,1}},
      {port, 1741 },
      {udp_port, 1742 },
      {dht_port, 1743 },
@@ -603,7 +603,7 @@ seed_configuration(Dir) ->
     | standard_directory_layout(Dir, ct:get_config(common_conf))].
 
 leech_configuration(Dir) ->
-    [{listen_ip, {127,0,0,3}},
+    [{listen_ip, {127,0,0,1}},
      {port, 1751 },
      {udp_port, 1752 },
      {dht_port, 1753 },
@@ -611,14 +611,14 @@ leech_configuration(Dir) ->
     | standard_directory_layout(Dir, ct:get_config(common_conf))].
 
 middleman_configuration(Dir) ->
-    [{listen_ip, {127,0,0,4}},
+    [{listen_ip, {127,0,0,1}},
      {port, 1761 },
      {udp_port, 1762 },
      {dht_port, 1763 }
     | standard_directory_layout(Dir, ct:get_config(common_conf))].
 
 choked_seed_configuration(Dir) ->
-    [{listen_ip, {127,0,0,5}},
+    [{listen_ip, {127,0,0,1}},
      {port, 1771 },
      {udp_port, 1772 },
      {dht_port, 1773 },
