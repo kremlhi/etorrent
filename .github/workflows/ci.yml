@@ -23,6 +23,12 @@ jobs:
           key: ${{ runner.os }}-rebar3-29-${{ hashFiles('rebar.config') }}
       - run: rebar3 compile
       - run: epmd -daemon && rebar3 ct
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ct-logs-latest
+          path: _build/test/logs/**
+          retention-days: 7
 
   test-older:
     needs: test-latest
@@ -42,3 +48,9 @@ jobs:
           key: ${{ runner.os }}-rebar3-${{ matrix.otp }}-${{ hashFiles('rebar.config') }}
       - run: rebar3 compile
       - run: epmd -daemon && rebar3 ct
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ct-logs-${{ matrix.otp }}
+          path: _build/test/logs/**
+          retention-days: 7
