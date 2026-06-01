@@ -207,6 +207,11 @@ init_per_testcase(seed_leech, Config) ->
     {ok, _} = copy_to(TorrentFn, ?config(dir, SNodeConf)),
     start_app(SNode, SNodeConf),
     start_app(LNode, LNodeConf),
+    ct:pal("seed_leech init: sleeping 3s to let dirwatcher fire"),
+    ok = ct:sleep({seconds, 3}),
+    ct:pal("seed_leech init: seed node ~p etorrent_table = ~p",
+           [SNode, rpc:call(SNode, etorrent_table, get_torrent,
+                            [{infohash, ?config(info_hash_bin, Config)}])]),
     [{tracker_port, TrackerPid},
      {src_filename, SrcFn},
      {dest_filename, DestFn},
@@ -679,10 +684,19 @@ seed_leech() ->
 
 seed_leech(Config) ->
     io:format("~n======START SEED AND LEECHING TEST CASE======~n", []),
+    SNode = ?config(seed_node, Config),
+    LNode = ?config(leech_node, Config),
+    BinIH = ?config(info_hash_bin, Config),
+    ct:pal("seed_leech: seed=~p leech=~p", [SNode, LNode]),
+    ct:pal("seed_leech: seed etorrent_table = ~p",
+           [rpc:call(SNode, etorrent_table, get_torrent, [{infohash, BinIH}])]),
     {Ref, Pid} = {make_ref(), self()},
-    {ok, _} = rpc:call(?config(leech_node, Config),
-		  etorrent, start,
-		  [?config(http_torrent_file, Config), {Ref, Pid}]),
+    StartResult = rpc:call(LNode, etorrent, start,
+                           [?config(http_torrent_file, Config), {Ref, Pid}]),
+    ct:pal("seed_leech: etorrent:start on leech = ~p", [StartResult]),
+    {ok, _} = StartResult,
+    ct:pal("seed_leech: seed torrent registered? ~p",
+           [rpc:call(SNode, etorrent_table, get_torrent, [{infohash, BinIH}])]),
     receive
 	{Ref, done} -> ok
     after
