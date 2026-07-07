@@ -1,0 +1,6 @@
+-name etorrent@127.0.0.1
+-setcookie etorrent
++K true
++A 12
+-env ERL_MAX_PORTS 4096
+-env ERL_FULLSWEEP_AFTER 10
