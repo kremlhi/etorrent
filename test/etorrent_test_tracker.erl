@@ -26,6 +26,8 @@ init(Port) ->
 handle_info(accept, #state{lsock = LSock, peers = Peers} = State) ->
     case gen_tcp:accept(LSock, 50) of
         {ok, Sock} ->
+            {ok, {RemoteIP, RemotePort}} = inet:peername(Sock),
+            ct:pal("tracker: accepted connection from ~p:~p", [RemoteIP, RemotePort]),
             spawn(fun() -> handle_request(Sock, Peers) end),
             self() ! accept;
         {error, timeout} ->
@@ -70,8 +72,11 @@ handle_announce(Sock, Path, Peers) ->
             {ok, {PeerIP, _}} = inet:peername(Sock),
             IpBin = list_to_binary(inet:ntoa(PeerIP)),
             ets:insert(Peers, {InfoHash, IpBin, AnnPort}),
+            AllPeers = ets:lookup(Peers, InfoHash),
+            ct:pal("tracker: announce from ~s:~p ih=~p, all_peers=~p",
+                   [IpBin, AnnPort, binary:part(InfoHash, 0, min(4, byte_size(InfoHash))), AllPeers]),
             PeerList  = [[{<<"ip">>, Ip}, {<<"port">>, P}]
-                         || {_, Ip, P} <- ets:lookup(Peers, InfoHash)],
+                         || {_, Ip, P} <- AllPeers],
             Body      = iolist_to_binary(etorrent_bcoding:encode(
                             [{<<"interval">>, 30}, {<<"peers">>, PeerList}])),
             respond(Sock, 200, Body);
