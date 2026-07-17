@@ -11,7 +11,7 @@ they are.
 
 ## Build Status
 
-[![CI](https://github.com/jlouis/etorrent/actions/workflows/ci.yml/badge.svg)](https://github.com/jlouis/etorrent/actions/workflows/ci.yml)
+[![CI](https://github.com/kremlhi/etorrent/actions/workflows/ci.yml/badge.svg)](https://github.com/kremlhi/etorrent/actions/workflows/ci.yml)
 
 
 ## Why
