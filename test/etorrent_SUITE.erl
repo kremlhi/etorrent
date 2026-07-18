@@ -118,71 +118,11 @@ end_per_suite(Config) ->
     ok.
 
 
-init_per_testcase(T, _Config) when T == leech_transmission; T == seed_transmission ->
-    {skip, "requires transmission-cli binary"};
-init_per_testcase(leech_transmission, Config) ->
-    %% transmission => etorrent
-    PrivDir   = ?config(priv_dir, Config),
-    DataDir   = ?config(data_dir, Config),
-    TorrentFn = ?config(http_torrent_file, Config),
-    Node      = ?config(leech_node, Config),
-    Fn        = ?config(data_filename, Config),
-    TrackerPid = start_opentracker(DataDir),
-    %% Transmission's working directory
-    TranDir = filename:join([PrivDir, transmission]),
-    NodeDir = filename:join([PrivDir,  leech]),
-    BaseFn  = filename:basename(Fn),
-    SrcFn   = filename:join([TranDir, BaseFn]),
-    DestFn  = filename:join([NodeDir, "downloads", BaseFn]),
-    file:make_dir(TranDir),
-    {ok, _} = copy_to(filename:join([DataDir, "transmission", "settings.json"]),
-	             	  TranDir),
-    %% Feed transmission the file to work with
-    {ok, _} = file:copy(Fn, SrcFn),
-    {Ref, Pid} = start_transmission(DataDir, TranDir, TorrentFn),
-    ok = ct:sleep({seconds, 10}), %% Wait for transmission to start up
-    create_standard_directory_layout(NodeDir),
-    NodeConf = leech_configuration(NodeDir),
-    start_app(Node, NodeConf), %% Start etorrent on the leecher node
-    [{tracker_port, TrackerPid},
-     {transmission_port, {Ref, Pid}},
-     {src_filename, SrcFn},
-     {dest_filename, DestFn},
-     {transmission_dir, TranDir},
-     {node_dir, NodeDir} | Config];
-init_per_testcase(seed_transmission, Config) ->
-    %% etorrent => transmission
-    PrivDir   = ?config(priv_dir, Config),
-    DataDir   = ?config(data_dir, Config),
-    TorrentFn = ?config(http_torrent_file, Config),
-    Node      = ?config(seed_node, Config),
-    Fn        = ?config(data_filename, Config),
-    TrackerPid = start_opentracker(DataDir),
-    %% Transmission's working directory
-    TranDir = filename:join([PrivDir, transmission]),
-    NodeDir = filename:join([PrivDir,  seed]),
-    BaseFn  = filename:basename(Fn),
-    SrcFn   = filename:join([NodeDir, "downloads", BaseFn]),
-    DestFn  = filename:join([TranDir, BaseFn]),
-    file:make_dir(TranDir),
-    {ok, _} = copy_to(filename:join([DataDir, "transmission", "settings.json"]),
-	             	  TranDir),
-    {Ref, Pid} = start_transmission(DataDir, TranDir, TorrentFn),
-    ok = ct:sleep({seconds, 8}), %% Wait for transmission to start up
-    NodeDir  = filename:join([PrivDir,  seed]),
-    create_standard_directory_layout(NodeDir),
-    NodeConf = seed_configuration(NodeDir),
-    %% Feed etorrent the file to work with
-    {ok, _} = file:copy(Fn, SrcFn),
-    %% Copy torrent-file to torrents-directory
-    {ok, _} = copy_to(TorrentFn, ?config(dir, NodeConf)),
-    start_app(Node, NodeConf),
-    [{tracker_port, TrackerPid},
-     {transmission_port, {Ref, Pid}},
-     {src_filename, SrcFn},
-     {dest_filename, DestFn},
-     {transmission_dir, TranDir},
-     {node_dir, NodeDir} | Config];
+init_per_testcase(T, Config) when T == leech_transmission; T == seed_transmission ->
+    case os:find_executable("transmission-cli") of
+        false -> {skip, "requires transmission-cli binary"};
+        _Path -> init_transmission_testcase(T, Config)
+    end;
 init_per_testcase(seed_leech, Config) ->
     %% etorrent => etorrent
     PrivDir   = ?config(priv_dir, Config),
@@ -447,6 +387,71 @@ init_per_testcase(bep9, Config) ->
      {middleman_node_dir, MNodeDir},
      {seed_node_dir, SNodeDir},
      {leech_node_dir, LNodeDir} | Config].
+
+
+init_transmission_testcase(leech_transmission, Config) ->
+    %% transmission => etorrent
+    PrivDir   = ?config(priv_dir, Config),
+    DataDir   = ?config(data_dir, Config),
+    TorrentFn = ?config(http_torrent_file, Config),
+    Node      = ?config(leech_node, Config),
+    Fn        = ?config(data_filename, Config),
+    TrackerPid = start_opentracker(DataDir),
+    %% Transmission's working directory
+    TranDir = filename:join([PrivDir, transmission]),
+    NodeDir = filename:join([PrivDir,  leech]),
+    BaseFn  = filename:basename(Fn),
+    SrcFn   = filename:join([TranDir, BaseFn]),
+    DestFn  = filename:join([NodeDir, "downloads", BaseFn]),
+    file:make_dir(TranDir),
+    {ok, _} = copy_to(filename:join([DataDir, "transmission", "settings.json"]),
+	             	  TranDir),
+    %% Feed transmission the file to work with
+    {ok, _} = file:copy(Fn, SrcFn),
+    {Ref, Pid} = start_transmission(DataDir, TranDir, TorrentFn),
+    ok = ct:sleep({seconds, 10}), %% Wait for transmission to start up
+    create_standard_directory_layout(NodeDir),
+    NodeConf = leech_configuration(NodeDir),
+    start_app(Node, NodeConf), %% Start etorrent on the leecher node
+    [{tracker_port, TrackerPid},
+     {transmission_port, {Ref, Pid}},
+     {src_filename, SrcFn},
+     {dest_filename, DestFn},
+     {transmission_dir, TranDir},
+     {node_dir, NodeDir} | Config];
+init_transmission_testcase(seed_transmission, Config) ->
+    %% etorrent => transmission
+    PrivDir   = ?config(priv_dir, Config),
+    DataDir   = ?config(data_dir, Config),
+    TorrentFn = ?config(http_torrent_file, Config),
+    Node      = ?config(seed_node, Config),
+    Fn        = ?config(data_filename, Config),
+    TrackerPid = start_opentracker(DataDir),
+    %% Transmission's working directory
+    TranDir = filename:join([PrivDir, transmission]),
+    NodeDir = filename:join([PrivDir,  seed]),
+    BaseFn  = filename:basename(Fn),
+    SrcFn   = filename:join([NodeDir, "downloads", BaseFn]),
+    DestFn  = filename:join([TranDir, BaseFn]),
+    file:make_dir(TranDir),
+    {ok, _} = copy_to(filename:join([DataDir, "transmission", "settings.json"]),
+	             	  TranDir),
+    {Ref, Pid} = start_transmission(DataDir, TranDir, TorrentFn),
+    ok = ct:sleep({seconds, 8}), %% Wait for transmission to start up
+    NodeDir  = filename:join([PrivDir,  seed]),
+    create_standard_directory_layout(NodeDir),
+    NodeConf = seed_configuration(NodeDir),
+    %% Feed etorrent the file to work with
+    {ok, _} = file:copy(Fn, SrcFn),
+    %% Copy torrent-file to torrents-directory
+    {ok, _} = copy_to(TorrentFn, ?config(dir, NodeConf)),
+    start_app(Node, NodeConf),
+    [{tracker_port, TrackerPid},
+     {transmission_port, {Ref, Pid}},
+     {src_filename, SrcFn},
+     {dest_filename, DestFn},
+     {transmission_dir, TranDir},
+     {node_dir, NodeDir} | Config].
 
 
 end_per_testcase(leech_transmission, Config) ->
