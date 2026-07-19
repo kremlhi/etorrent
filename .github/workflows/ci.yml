@@ -29,6 +29,36 @@ jobs:
           path: _build/test/logs/**
           retention-days: 7
 
+  coverage:
+    needs: test-latest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '29'
+          rebar3-version: 'latest'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/rebar3
+          key: ${{ runner.os }}-rebar3-29-${{ hashFiles('rebar.config') }}
+      # Promote etorrent_core from a locked dependency to a checkout:
+      # neither the CT cover spec nor rebar3 instruments regular deps.
+      - run: |
+          rebar3 get-deps
+          mkdir -p _checkouts
+          cp -R _build/default/lib/etorrent_core _checkouts/etorrent_core
+          rm -rf _build
+      - run: ./cover.sh 80
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cover-logs
+          path: |
+            _build/test/logs/**
+            _build/test/cover/**
+          retention-days: 7
+
   test-older:
     needs: test-latest
     runs-on: ubuntu-latest

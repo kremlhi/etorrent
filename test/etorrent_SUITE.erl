@@ -75,6 +75,9 @@ init_per_suite(Config) ->
     {ok, LeechNode}      = test_server:start_node(leecher, slave, []),
     {ok, MiddlemanNode}  = test_server:start_node(middleman, slave, []),
     {ok, ChokedSeedNode} = test_server:start_node(choked_seeder, slave, []),
+    %% When CT runs with a cover spec, count code executed on the slave
+    %% nodes too. Without cover this returns {error, cover_not_running}.
+    _ = ct_cover:add_nodes([SeedNode, LeechNode, MiddlemanNode, ChokedSeedNode]),
     %% Run logger on the slave nodes
     [prepare_node(Node)
      || Node <- [SeedNode, LeechNode, MiddlemanNode, ChokedSeedNode]],
@@ -111,6 +114,8 @@ end_per_suite(Config) ->
     SN = ?config(seed_node, Config),
     MN = ?config(middleman_node, Config),
     CN = ?config(choked_seed_node, Config),
+    %% Flush cover data collected on the slave nodes before they die.
+    _ = ct_cover:remove_nodes([SN, LN, MN, CN]),
     test_server:stop_node(SN),
     test_server:stop_node(LN),
     test_server:stop_node(MN),
