@@ -5,7 +5,7 @@
 -module(etorrent_test_tracker).
 -behaviour(gen_server).
 
--export([start/1, stop/1]).
+-export([start/1, stop/1, num_peers/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
@@ -16,6 +16,11 @@ start(Port) ->
 
 stop(Pid) ->
     gen_server:stop(Pid).
+
+%% Number of peers that have announced for the given (raw binary)
+%% info hash. Lets the suite poll for readiness instead of sleeping.
+num_peers(InfoHash) ->
+    gen_server:call(?MODULE, {num_peers, InfoHash}).
 
 init(Port) ->
     {ok, LSock} = gen_tcp:listen(Port, [binary, {reuseaddr, true}, {active, false}]),
@@ -39,6 +44,8 @@ handle_info(accept, #state{lsock = LSock, peers = Peers} = State) ->
 handle_info(_, State) ->
     {noreply, State}.
 
+handle_call({num_peers, InfoHash}, _, #state{peers = Peers} = State) ->
+    {reply, length(ets:lookup(Peers, InfoHash)), State};
 handle_call(_, _, State) -> {reply, ok, State}.
 handle_cast(_, State)    -> {noreply, State}.
 
@@ -70,15 +77,20 @@ handle_announce(Sock, Path, Peers) ->
             AnnPort   = binary_to_integer(
                           proplists:get_value(<<"port">>, Params, <<"0">>)),
             {ok, {PeerIP, _}} = inet:peername(Sock),
-            IpBin = list_to_binary(inet:ntoa(PeerIP)),
-            ets:insert(Peers, {InfoHash, IpBin, AnnPort}),
+            ets:insert(Peers, {InfoHash, PeerIP, AnnPort}),
             AllPeers = ets:lookup(Peers, InfoHash),
-            ct:pal("tracker: announce from ~s:~p ih=~p, all_peers=~p",
-                   [IpBin, AnnPort, binary:part(InfoHash, 0, min(4, byte_size(InfoHash))), AllPeers]),
-            PeerList  = [[{<<"ip">>, Ip}, {<<"port">>, P}]
-                         || {_, Ip, P} <- AllPeers],
+            ct:pal("tracker: announce from ~p:~p ih=~p, all_peers=~p",
+                   [PeerIP, AnnPort, binary:part(InfoHash, 0, min(4, byte_size(InfoHash))), AllPeers]),
+            %% BEP 23 compact peer list. Transmission 4 silently discards
+            %% the non-compact dict format, so compact is required for
+            %% interop; etorrent understands both.
+            PeersBin  = << <<A, B, C, D, P:16>>
+                           || {_, {A, B, C, D}, P} <- AllPeers >>,
             Body      = iolist_to_binary(etorrent_bcoding:encode(
-                            [{<<"interval">>, 30}, {<<"peers">>, PeerList}])),
+                            %% Short interval so clients that announced
+                            %% before their counterpart re-announce and
+                            %% discover it quickly.
+                            [{<<"interval">>, 5}, {<<"peers">>, PeersBin}])),
             respond(Sock, 200, Body);
         _ ->
             respond(Sock, 400, <<"Bad Request">>)
