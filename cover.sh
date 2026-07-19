@@ -25,7 +25,9 @@ fi
 rebar3 as test compile
 epmd -daemon || true
 rm -rf _build/test/cover
-mkdir -p _build/test/cover
+# ct_run does not create its log directory and fails with enoent on a
+# fresh workspace if it is missing.
+mkdir -p _build/test/cover _build/test/logs
 
 ct_run -dir "$PWD/test" -suite etorrent_SUITE \
     -config etorrent_test.cfg \
