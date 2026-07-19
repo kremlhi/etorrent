@@ -152,8 +152,7 @@ init_per_testcase(seed_leech, Config) ->
     {ok, _} = copy_to(TorrentFn, ?config(dir, SNodeConf)),
     start_app(SNode, SNodeConf),
     start_app(LNode, LNodeConf),
-    ct:pal("seed_leech init: sleeping 3s to let dirwatcher fire"),
-    ok = ct:sleep({seconds, 3}),
+    ok = wait_tracker_peers(?config(info_hash_bin, Config), 1),
     ct:pal("seed_leech init: seed node ~p etorrent_table = ~p",
            [SNode, rpc:call(SNode, etorrent_table, get_torrent,
                             [{infohash, ?config(info_hash_bin, Config)}])]),
@@ -218,7 +217,7 @@ init_per_testcase(udp_seed_leech, Config) ->
     {ok, _} = copy_to(TorrentFn, ?config(dir, SNodeConf)),
     start_app(SNode, SNodeConf),
     start_app(LNode, LNodeConf),
-    ok = ct:sleep({seconds, 5}),
+    ok = wait_tracker_peers(?config(info_hash_bin, Config), 1),
     [{tracker_port, TrackerPid},
      {src_filename, SrcFn},
      {dest_filename, DestFn},
@@ -231,7 +230,6 @@ init_per_testcase(down_udp_tracker, Config) ->
     create_standard_directory_layout(LNodeDir),
     LNodeConf = leech_configuration(LNodeDir),
     start_app(LNode, LNodeConf),
-    ok = ct:sleep({seconds, 5}),
     [{leech_node_dir, LNodeDir} | Config];
 init_per_testcase(choked_seed_leech, Config) ->
     %% etorrent => etorrent, one seed is choked (refuse to work).
@@ -265,7 +263,7 @@ init_per_testcase(choked_seed_leech, Config) ->
     start_app(CNode, CNodeConf),
     start_app(SNode, SNodeConf),
     start_app(LNode, LNodeConf),
-    ok = ct:sleep({seconds, 5}),
+    ok = wait_tracker_peers(?config(info_hash_bin, Config), 2),
     [{tracker_port, TrackerPid},
      {src_filename, SSrcFn},
      {dest_filename, DestFn},
@@ -296,7 +294,7 @@ init_per_testcase(choked_reject, Config) ->
     {ok, _} = copy_to(TorrentFn, ?config(dir, SNodeConf)),
     start_app(SNode, SNodeConf),
     start_app(LNode, LNodeConf),
-    ok = ct:sleep({seconds, 5}),
+    ok = wait_tracker_peers(?config(info_hash_bin, Config), 1),
     [{tracker_port, TrackerPid},
      {src_filename, SSrcFn},
      {dest_filename, DestFn},
@@ -327,7 +325,7 @@ init_per_testcase(partial_downloading, Config) ->
     {ok, _} = copy_to(TorrentFn, ?config(dir, SNodeConf)),
     start_app(SNode, SNodeConf),
     start_app(LNode, LNodeConf),
-    ok = ct:sleep({seconds, 5}),
+    ok = wait_tracker_peers(?config(dir_info_hash_bin, Config), 1),
     [{tracker_port, TrackerPid},
      {src_filename, SrcFn},
      {dest_filename, DestFn},
@@ -414,7 +412,7 @@ init_transmission_testcase(leech_transmission, Config) ->
     %% Feed transmission the file to work with
     {ok, _} = file:copy(Fn, SrcFn),
     {Ref, Pid} = start_transmission(DataDir, TranDir, TorrentFn),
-    ok = ct:sleep({seconds, 10}), %% Wait for transmission to start up
+    ok = wait_tracker_peers(?config(info_hash_bin, Config), 1),
     create_standard_directory_layout(NodeDir),
     NodeConf = leech_configuration(NodeDir),
     start_app(Node, NodeConf), %% Start etorrent on the leecher node
@@ -441,8 +439,12 @@ init_transmission_testcase(seed_transmission, Config) ->
     file:make_dir(TranDir),
     {ok, _} = copy_to(filename:join([DataDir, "transmission", "settings.json"]),
 	             	  TranDir),
+    %% Transmission must announce before the etorrent seed starts:
+    %% transmission never initiates connections to 127.0.0.1 peers, so
+    %% the transfer only happens because the etorrent seed learns about
+    %% transmission from its announce response and dials out.
     {Ref, Pid} = start_transmission(DataDir, TranDir, TorrentFn),
-    ok = ct:sleep({seconds, 8}), %% Wait for transmission to start up
+    ok = wait_tracker_peers(?config(info_hash_bin, Config), 1),
     NodeDir  = filename:join([PrivDir,  seed]),
     create_standard_directory_layout(NodeDir),
     NodeConf = seed_configuration(NodeDir),
@@ -451,6 +453,10 @@ init_transmission_testcase(seed_transmission, Config) ->
     %% Copy torrent-file to torrents-directory
     {ok, _} = copy_to(TorrentFn, ?config(dir, NodeConf)),
     start_app(Node, NodeConf),
+    %% Transmission needs tens of seconds for the transfer, spanning many
+    %% choker rounds. Keep the default round time on the seed: the short
+    %% test round makes the choker churn mid transfer and stall it.
+    ok = rpc:call(Node, etorrent_choker, set_round_time, [10000]),
     [{tracker_port, TrackerPid},
      {transmission_port, {Ref, Pid}},
      {src_filename, SrcFn},
@@ -752,9 +758,13 @@ down_udp_tracker(Config) ->
     {ok, _} = rpc:call(LeechNode, etorrent_ctl, start,
           [?config(bad_udp_dir_torrent_file, Config),
            [{udp_tracker_connection_timeout, 5000}]]),
+    %% The guarded regression (cancel_conn_id_req crashing on two pending
+    %% requests) fires within the first connection timeout cycles; the
+    %% torrents above use a 5 second udp_tracker_connection_timeout, so
+    %% two cycles are enough of an observation window.
     receive
 	{'DOWN', Ref, _, _, Reason} -> error({manager_crashed, Reason})
-    after 30000 -> ok
+    after 10000 -> ok
     end,
     true.
 
@@ -784,10 +794,13 @@ choked_reject(Config) ->
     ok = rpc:call(SNode, etorrent_choker, set_upload_slots, [0, 0]),
     ok = rpc:call(SNode, etorrent_peer_control, choke, [SPeerPid]),
 
+    %% Negative observation window: with 1 second choker rounds on the
+    %% leech, ten rounds are plenty to expose an unchoke leak; a broken
+    %% choke would complete the 30M transfer within a round or two.
     receive
 	{Ref, done} -> error(marked_chocked_but_unchocked)
     after
-    20*1000 -> ct:pal("PASSED"), ok
+    10*1000 -> ct:pal("PASSED"), ok
     end.
 
 partial_downloading() ->
@@ -845,7 +858,7 @@ bep9(Config) ->
     true = rpc:call(LeechNode,     etorrent_config, dht, []),
     true = rpc:call(MiddlemanNode, etorrent_config, dht, []),
 
-    timer:sleep(2000),
+    timer:sleep(1000),
     %% Form a DHT network.
     %% etorrent_dht_state:safe_insert_node({127,0,0,1}, 6881).
     MiddlemanDhtPort = rpc:call(MiddlemanNode, etorrent_config, dht_port, []),
@@ -857,12 +870,12 @@ bep9(Config) ->
     true = rpc:call(LeechNode,
     	  etorrent_dht_state, safe_insert_node,
     	  [MiddlemanIP, MiddlemanDhtPort]),
-    timer:sleep(3000),
+    timer:sleep(1000),
     io:format("ANNOUNCE FROM SEED~n", []),
     ok = rpc:call(SeedNode, etorrent_dht_tracker, trigger_announce, []),
 
     %% Wait for announce.
-    timer:sleep(3000),
+    timer:sleep(1000),
     io:format("SEARCH FROM LEECH~n", []),
 
     Self = self(),
@@ -1102,6 +1115,20 @@ lager_handlers(NodeName) ->
     [{lager_console_backend, [debug, {lager_default_formatter, Format}]}].
 
 
+%% Wait until at least N peers have announced the info hash to the test
+%% tracker. A seed announces once its torrent is checked and started, so
+%% this replaces the fixed sleeps that used to pad init_per_testcase.
+wait_tracker_peers(InfoHash, N) ->
+    wait_tracker_peers(InfoHash, N, 200).
+
+wait_tracker_peers(InfoHash, N, 0) ->
+    exit({tracker_peers_timeout, InfoHash, N});
+wait_tracker_peers(InfoHash, N, Tries) ->
+    case etorrent_test_tracker:num_peers(InfoHash) of
+        Count when Count >= N -> ok;
+        _ -> timer:sleep(100), wait_tracker_peers(InfoHash, N, Tries - 1)
+    end.
+
 %% Returns torrent_id.
 wait_torrent_registration(Node, BinIH) ->
     case rpc:call(Node, etorrent_table, get_torrent, [{infohash, BinIH}]) of
@@ -1176,7 +1203,11 @@ stop_app(Node) ->
     end.
 
 start_app(Node, AppConfig) ->
-    ok = rpc:call(Node, etorrent, start_app, [AppConfig]).
+    ok = rpc:call(Node, etorrent, start_app, [AppConfig]),
+    %% The choker only unchokes peers on round timers, and its default
+    %% 10 second round puts a 10 second floor under every transfer test.
+    %% Cases that need choking frozen override this with a large value.
+    ok = rpc:call(Node, etorrent_choker, set_round_time, [1000]).
 
 
 enable_dht(AppConfig) ->
