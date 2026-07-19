@@ -1,0 +1,33 @@
+#!/usr/bin/env escript
+%% -*- mode: erlang -*-
+%% Import coverdata files, print per-module and total line coverage,
+%% and exit nonzero if the total is below the required percentage.
+%%
+%% Usage: cover_gate <min_percent> <coverdata-file>...
+
+main([MinStr | Files]) when Files =/= [] ->
+    Min = list_to_integer(MinStr),
+    [ok = cover:import(F) || F <- Files],
+    Mods = lists:sort(cover:imported_modules()),
+    Res = [analyse(M) || M <- Mods],
+    [io:format("~-40w ~6.1f%  (~p/~p lines)~n", [M, pct(C, N), C, C + N])
+     || {M, C, N} <- Res],
+    TotC = lists:sum([C || {_, C, _} <- Res]),
+    TotN = lists:sum([N || {_, _, N} <- Res]),
+    Total = pct(TotC, TotN),
+    io:format("~ntotal: ~.1f% (~p of ~p lines, ~p modules), required: ~p%~n",
+              [Total, TotC, TotC + TotN, length(Mods), Min]),
+    case Total >= Min of
+        true  -> ok;
+        false -> io:format("coverage below required minimum~n"), halt(1)
+    end;
+main(_) ->
+    io:format("usage: cover_gate <min_percent> <coverdata-file>...~n"),
+    halt(2).
+
+analyse(Mod) ->
+    {ok, {Mod, {Cov, NotCov}}} = cover:analyse(Mod, coverage, module),
+    {Mod, Cov, NotCov}.
+
+pct(0, 0) -> 0.0;
+pct(Cov, NotCov) -> 100 * Cov / (Cov + NotCov).

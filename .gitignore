@@ -31,3 +31,4 @@ log/*
 /test/etorrent_SUITE_data/autogen
 /logs/*
 test/etorrent_SUITE_data/log/
+_checkouts/
