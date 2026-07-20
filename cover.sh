@@ -9,10 +9,9 @@
 #     counts those too. The coverage gate applies to this data.
 #   - EUnit runs inside the etorrent_core checkout ('rebar3 eunit' does
 #     not pick up checkout apps from the umbrella). Its coverage is
-#     reported for information but not merged into the gate: the eunit
-#     beams are compiled with -DTEST, which changes the measurable line
-#     set, and merging differently compiled instrumentations distorts
-#     the percentage.
+#     merged into the gate; this relies on etorrent_core having no
+#     in-module -ifdef(TEST) sections (kremlhi/etorrent_core#1), so the
+#     -DTEST eunit build measures the same line set as the CT build.
 #
 # Usage: ./cover.sh [min_percent]   (default 80)
 set -e
@@ -40,10 +39,8 @@ cp "$(ls -t _build/test/logs/ct_run.*/all.coverdata | head -1)" \
 
 (cd _checkouts/etorrent_core && rebar3 eunit --cover)
 cp _checkouts/etorrent_core/_build/test/cover/eunit.coverdata _build/test/cover/
-echo ""
-echo "EUnit coverage (informational):"
-./cover_gate 0 _build/test/cover/eunit.coverdata | tail -1
 
 echo ""
-echo "Common Test coverage (gated):"
-exec ./cover_gate "$MIN" _build/test/cover/ct.coverdata
+echo "Combined EUnit and Common Test coverage (gated):"
+exec ./cover_gate "$MIN" _build/test/cover/ct.coverdata \
+    _build/test/cover/eunit.coverdata
